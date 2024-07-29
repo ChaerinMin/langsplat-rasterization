@@ -217,6 +217,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const float tan_fovx, float tan_fovy,
 	const bool prefiltered,
 	float* out_color,
+	float* out_depth,
 	float* out_language_feature,
 	int* radii,
 	bool debug,
@@ -318,7 +319,7 @@ int CudaRasterizer::Rasterizer::forward(
 			num_rendered,
 			binningState.point_list_keys,
 			imgState.ranges);
-	// CHECK_CUDA(, debug)
+	CHECK_CUDA(, debug)
 
 	// Let each tile blend its range of Gaussians independently in parallel
 	const float* feature_ptr = colors_precomp != nullptr ? colors_precomp : geomState.rgb;
@@ -337,12 +338,14 @@ int CudaRasterizer::Rasterizer::forward(
 		width, height,
 		geomState.means2D,
 		feature_ptr,
+		geomState.depths,
 		language_feature_ptr,
 		geomState.conic_opacity,
 		imgState.accum_alpha,
 		imgState.n_contrib,
 		background,
 		out_color,
+		out_depth,
 		out_language_feature,
 		include_feature), debug) // 增加了参数
 
@@ -377,11 +380,13 @@ void CudaRasterizer::Rasterizer::backward(
 	char* binning_buffer,
 	char* img_buffer,
 	const float* dL_dpix,
+	const float* dLd_dpix,
 	const float* dL_dpix_F,
 	float* dL_dmean2D,
 	float* dL_dconic,
 	float* dL_dopacity,
 	float* dL_dcolor,
+	float* dLd_ddepth,
 	float* dL_dlanguage_feature,
 	float* dL_dmean3D,
 	float* dL_dcov3D,
@@ -421,16 +426,19 @@ void CudaRasterizer::Rasterizer::backward(
 		background,
 		geomState.means2D,
 		geomState.conic_opacity,
+		geomState.depths,
 		color_ptr,
 		language_feature_ptr,
 		imgState.accum_alpha,
 		imgState.n_contrib,
 		dL_dpix,
+		dLd_dpix,
 		dL_dpix_F,
 		(float3*)dL_dmean2D,
 		(float4*)dL_dconic,
 		dL_dopacity,
 		dL_dcolor,
+		dLd_ddepth,
 		dL_dlanguage_feature,
 		include_feature), debug)
 
@@ -456,6 +464,7 @@ void CudaRasterizer::Rasterizer::backward(
 		dL_dconic,
 		(glm::vec3*)dL_dmean3D,
 		dL_dcolor,
+		dLd_ddepth,
 		dL_dcov3D,
 		dL_dsh,
 		(glm::vec3*)dL_dscale,

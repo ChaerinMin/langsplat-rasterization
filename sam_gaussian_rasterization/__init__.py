@@ -94,16 +94,16 @@ class _RasterizeGaussians(torch.autograd.Function):
                 print("\nAn error occured in forward. Please forward snapshot_fw.dump for debugging.")
                 raise ex
         else:
-            num_rendered, color, language_feature, radii, geomBuffer, binningBuffer, imgBuffer = _C.rasterize_gaussians(*args)
+            num_rendered, color, depth, language_feature, radii, geomBuffer, binningBuffer, imgBuffer = _C.rasterize_gaussians(*args)
 
         # Keep relevant tensors for backward
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered
         ctx.save_for_backward(colors_precomp, language_feature_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer)
-        return color, language_feature, radii
+        return color, language_feature, radii, depth
 
     @staticmethod
-    def backward(ctx, grad_out_color, grad_out_language_feature, _):
+    def backward(ctx, grad_out_color, grad_out_language_feature, grad_radii, grad_depth):
 
         # Restore necessary values from context
         num_rendered = ctx.num_rendered
@@ -125,6 +125,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 raster_settings.tanfovx, 
                 raster_settings.tanfovy, 
                 grad_out_color, 
+                grad_depth, 
                 grad_out_language_feature,
                 sh, 
                 raster_settings.sh_degree, 
@@ -133,6 +134,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 num_rendered,
                 binningBuffer,
                 imgBuffer,
+                raster_settings.bwd_depth,
                 raster_settings.debug,
                 raster_settings.include_feature)
 
@@ -176,6 +178,7 @@ class GaussianRasterizationSettings(NamedTuple):
     campos : torch.Tensor
     prefiltered : bool
     debug : bool
+    bwd_depth : bool
     include_feature: bool
 
 class GaussianRasterizer(nn.Module):
